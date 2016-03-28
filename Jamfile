@@ -1,0 +1,9 @@
+EXEMODE = 775 ;
+
+InstallBin /opt/local/bin : lookup-ct ;
+InstallBin /opt/local/bin : increment-expiry ;
+InstallBin /opt/local/bin : decrement-expiry ;
+
+InstallBin /opt/local/bin : split-contract ;
+InstallBin /opt/local/bin : roll.volume.db.txt ;
+

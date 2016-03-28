@@ -1,0 +1,51 @@
+#!/bin/bash
+############################################################
+# finance script source
+# (c) Jim Gerdy 2012
+############################################################
+TZ=America/Chicago
+usage() {
+cat << EOF
+usage: $0 options CONTRACT
+	Split into product, monthcode, and year
+	NOTE: for outrights only
+	-h	help, show this message
+	$0 ESZ4
+EOF
+}
+
+############################################################
+# parse cmdline 
+while getopts DhV OPTION; do case $OPTION in
+	D)	DEBUG=1 ; ;;
+	h)	usage; exit 1; ;;
+	V)	VERBOSE=1 ; ;;
+esac ; done
+shift $(( $OPTIND -1 ))
+CMDARGS_REMAINING=$0
+ARG_CT=$1
+if [[ $ARG_CT =~ \+[0-9]+$ ]] ; then echo $ARG_CT | cut -d+ -f1 ; exit 1 ; fi
+
+BASE_CT=$( echo $ARG_CT | cut -d- -f1 | cut -d_ -f1 )
+LEN_CT=${#BASE_CT}
+
+
+if [[ ! $BASE_CT =~ (F|G|H|J|K|M|N|Q|U|V|X|Z)[0-9] ]] ; then
+	echo $BASE_CT $ARG_CT
+	exit 1;
+fi
+
+PROD=${BASE_CT:0:$(( $LEN_CT - 2 ))}
+if [[ -z $PROD ]] ; then PROD=\"\" ; fi
+CURRENT_EXP_CODE=${BASE_CT:$(( $LEN_CT - 2 ))}
+if [[ -n $DEBUG ]] ; then
+	echo LEN_CT $LEN_CT
+	echo PROD $PROD
+	echo CURRENT_EXP_CODE $CURRENT_EXP_CODE
+fi
+
+CURRENT_CHAR=$( echo $CURRENT_EXP_CODE | cut -c1-1 )
+CURRENT_YEAR=$( echo $CURRENT_EXP_CODE | cut -c2-2 )
+
+echo $PROD $CURRENT_CHAR $CURRENT_YEAR
+

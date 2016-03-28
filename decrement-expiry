@@ -1,0 +1,76 @@
+#!/bin/bash
+############################################################
+# finance script source
+# (c) Jim Gerdy 2012
+############################################################
+TZ=America/Chicago
+usage() {
+cat << EOF
+usage: $0 options CONTRACT
+	previous expiry
+	-h	help, show this message
+	$0 ESZ4
+EOF
+}
+
+############################################################
+# parse cmdline 
+while getopts DhV OPTION; do case $OPTION in
+	D)	DEBUG=1 ; ;;
+	h)	usage; exit 1; ;;
+	V)	VERBOSE=1 ; ;;
+esac ; done
+shift $(( $OPTIND -1 ))
+CMDARGS_REMAINING=$0
+ARG_CT=$1
+
+FIELDS=$( /opt/local/bin/split-contract $ARG_CT )
+PROD=$( echo $FIELDS | cut -d\  -f1 )
+CURRENT_CHAR=$( echo $FIELDS | cut -d\  -f2 )
+CURRENT_YEAR=$( echo $FIELDS | cut -d\  -f3 )
+
+FNAME=/opt/local/bin/expiry-series.db.txt
+if [[ ! -e $FNAME ]] ; then
+	echo $FNAME not found
+	exit 1;
+fi
+
+if [[ $PROD == \"\" || ${#PROD} == 0 ]] ; then 
+	case $CURRENT_CHAR in
+		F)	NEXT_CHAR=Z ; ;;
+		G)	NEXT_CHAR=F ; ;;
+		H)	NEXT_CHAR=G ; ;;
+		J)	NEXT_CHAR=H ; ;;
+		K)	NEXT_CHAR=J ; ;;
+		M)	NEXT_CHAR=K ; ;;
+		N)	NEXT_CHAR=M ; ;;
+		Q)	NEXT_CHAR=N ; ;;
+		U)	NEXT_CHAR=Q ; ;;
+		V)	NEXT_CHAR=U ; ;;
+		X)	NEXT_CHAR=V ; ;;
+		Z)	NEXT_CHAR=X ; ;;
+	esac
+	PROD=
+else
+	NEXT_CHAR=$( cat $FNAME \
+	| grep $PROD \
+	| awk '{
+		for ( idx=12; idx>=1; idx-- ) print substr( $2, idx, 1 ) 
+		for ( idx=12; idx>=1; idx-- ) print substr( $2, idx, 1 ) 
+	}' \
+	| grep -e [A-Z] \
+	| awk -v current_char=$CURRENT_CHAR '{
+		if (is_found) print 
+		if ($1 == current_char) is_found=1
+	}' \
+	| head -1 )
+fi
+
+if [[ $NEXT_CHAR > $CURRENT_CHAR ]] ; then
+	NEXT_CT=${NEXT_CHAR}$( /opt/local/bin/decrement-yearcode $CURRENT_YEAR )
+else
+	NEXT_CT=${NEXT_CHAR}${CURRENT_YEAR}
+fi
+
+echo ${PROD}${NEXT_CT}
+

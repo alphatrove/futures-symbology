@@ -1,0 +1,101 @@
+#!/bin/bash
+############################################################
+# (c) Jim Gerdy 2012
+############################################################
+TZ=America/Chicago
+usage() {
+cat << EOF
+usage: $0 options NAME DATE
+	get current contract expiries for a given date
+	Returns nothing if date not avail in db.txt file
+	NAME	- product name, e.g. ES,CL
+	DATE	- yyyymmdd
+		No date means show all rolls
+	$0 ES 20120125  # gives ESH3
+EOF
+}
+
+############################################################
+# parse cmdline 
+SOURCE=$DEF_SOURCE
+while getopts DhV OPTION; do case $OPTION in
+	D)	DEBUG=1 ; VERBOSE=1 ; ;;
+	h)	usage; exit 1; ;;
+	V)	VERBOSE=1 ; ;;
+esac ; done
+shift $(( OPTIND - 1 ))
+CMDARGS_REMAINING=$0
+ANAME=$1
+ADATE=$2
+
+if [[ $ANAME =~ _E$ ]] ; then echo "$ANAME" ; exit 1; fi
+
+if [[ $ANAME =~ [FGHJKMNQUVXZ][0-9]$ ]] ; then
+# Argument is already a contract (ending with a year-number)
+ 	echo "$ANAME"
+ 	exit 1;
+fi
+
+############################################################
+# check date relative to date stamp of validity on db.txt file
+DBFNAME=/opt/local/bin/roll.volume.db.txt
+UPDATE=$( cat $DBFNAME | grep update | cut -d" " -f2 )
+if [[ $ADATE > $UPDATE && -z $IGNORE ]] ; then
+	echo "ERROR $ADATE follows file date $UPDATE"
+	exit 0;
+fi
+
+############################################################
+# If no date provided then simply write all rolldates
+if [[ -z $ADATE ]] ; then
+	cat $DBFNAME \
+	| grep -w -E "^$ANAME" \
+	| sort -n -k2 \
+	| TZ=$TZ gawk '$0 !~ /^#/ {yr=$2; for (i=4; i<=NF; i++) print yr $i}' \
+	| awk '{ mo=substr($0,length($0)-1); if ( mo != lastmo ) { print $0 } ; lastmo = mo; }' 
+	exit 1;
+else
+	DATE=$ADATE
+fi
+
+############################################################
+if [[ $ANAME =~ \+[0-9]+$ ]] ; then
+	PROD=$(   echo $ANAME | cut -d+ -f1 )
+	OFFSET=$( echo $ANAME | cut -d+ -f2 )
+	if [[ -n $DEBUG ]] ; then echo OFFSET $OFFSET ; fi
+else
+	PROD="$ANAME"
+fi
+
+############################################################
+# Check that year is available for this product
+YEAR=${DATE:0:4}
+MD=${DATE:4:4}
+RECORD=$( cat "$DBFNAME" | grep "^$PROD\s*$YEAR " )
+if [[ -z $RECORD ]]; then
+	exit 1
+fi
+
+############################################################
+# Finally get the expiry for the given date
+REST=$( echo "$RECORD" | /opt/local/bin/drop -n 2 )
+PRODNAME=$( echo "$REST" | /opt/local/bin/take -n 1 | sed 's/ $//' )
+EXLIST=$( echo "$REST" | /opt/local/bin/drop -n 1 )
+for itm in $EXLIST; do
+	IDATE=$( echo "$itm" | cut -d- -f1 )
+	EXP=$( echo "$itm" | cut -d- -f2 )
+	if [[ $IDATE > $MD ]]; then break; fi
+	LASTEXP=$EXP
+done
+if [[ -z $LASTEXP ]]; then exit 1; fi
+
+############################################################
+CT="${PRODNAME}${LASTEXP}"
+if [[ -n $OFFSET && $OFFSET -gt 0 ]] ; then
+	for idx in $( seq 1 $OFFSET ) ; do
+		CT="$(/opt/local/bin/increment-expiry $CT )"
+	done
+fi
+
+echo $CT
+
